@@ -1,92 +1,99 @@
-import os  # işletim sistemi etkileşimi için dizin yolları vs.
-import pdfplumber  # PDF okumak için
-from fpdf import FPDF  # PDF oluşturmak için.
-import pdftitle
-print(pdftitle.get_title_from_file(pdfler/bilgi2.pdf))
+import os
+import fitz  # PyMuPDF
+import tkinter as tk
+from tkinter import messagebox
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 
+# Variable to store extracted titles
+titles = []
 
-#Grid Sistemi
-from tkinter import *
-
-pencere = Tk()
-pencere.title("Grid Uygulaması")
-
-baslik = Label(pencere, text="Bilge Hari'nin Projesi")
-etiket1 = Label(pencere, text="[ Birinci satır, birinci sütun ]")
-etiket2 = Label(pencere, text="[ Birinci satır, ikinci sütun ]")
-etiket3 = Label(pencere, text="[ İkinci satır, birinci sütun ]")
-etiket4 = Label(pencere, text="[ İkinci satır, ikinci sütun ]")
-buton1 = Button(pencere, text="<<< Oku >>>", fg="red", bg="green")
-buton2 = Button(pencere, text="<<< Kaydet >>>", fg="black", bg="green")
-buton3 = Button(pencere, text="<<< Çıkış >>>", fg="black", bg="red", command=pencere.quit)
-
-baslik.grid(row=0, columnspan=2, padx=50, pady=25)
-baslik.config(font=("Times New Roman", 30))
-etiket1.grid(row=1, column=0, padx= 10, pady=20)
-etiket2.grid(row=1, column=1, padx= 10, pady=20)
-etiket3.grid(row=2, column=0, padx= 10, pady=20)
-etiket4.grid(row=2, column=1, padx= 10, pady=20)
-buton1.grid(row=3, column=0, padx=50, pady=10)
-buton2.grid(row=3, column=1, padx=50, pady=10)
-buton3.grid(row=4, columnspan=2, padx=5, pady=10)
-
-pencere.mainloop()
-
-
-
-def menu():
-    print("Menü:")
-    print("1- PDF Dosya İçerik (Başlıklar) Oku")
-    print("2- PDF (Başlıkları) Kaydet")
-    print("3- Çıkış Yap")
-
-
-def extract_titles_from_pdf(pdf_path):
+# Function to extract titles from PDF files in a specified directory
+def extract_titles(directory):
+    global titles
     titles = []
-
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            text = page.extract_text()
-            titles.extend(text.split('\n'))
-
+    for file_name in os.listdir(directory):
+        if file_name.endswith(".pdf"):
+            file_path = os.path.join(directory, file_name)
+            print(f"Processing file: {file_path}")
+            pdf_document = fitz.open(file_path)
+            title = pdf_document.metadata.get("title", "").strip()
+            print(f"Extracted title: {title}")
+            titles.append((title, file_path))
+            pdf_document.close()
     return titles
 
+# Function to save titles to a new PDF file
+def save_titles(title_list, output_filename):
+    try:
+        pdf_writer = fitz.open()
+        for title, file_path in title_list:
+            pdf_document = fitz.open(file_path)
+            pdf_writer.insert_pdf(pdf_document)
+            pdf_document.close()
 
-def save_titles_to_pdf(titles):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=1, margin=15)
-    pdf.set_font("Arial", size=12)
+        # Create a new PDF with improved readability
+        with open(output_filename, "wb") as output_file:
+            c = canvas.Canvas(output_file, pagesize=letter)
+            c.setFont("Helvetica", 16)
+            c.drawString(72, 750, "Extracted Titles")
+            c.setFont("Helvetica", 12)
 
-    for title in titles:
-        pdf.cell(200, 10, txt=title.encode('latin-1', 'replace').decode('latin-1'), ln=True)
+            for index, (title, _) in enumerate(title_list, start=1):
+                y_position = 720 - (index * 14)
+                c.drawString(72, y_position, f"{index}. {title}")
 
-    pdf.output("newfile.pdf", 'F')
+            c.save()
 
-while True:
-    menu()
-    choice = input("Seçiminizi girin (1/2/3): ")
+    except Exception as e:
+        messagebox.showerror("Error", f"An error occurred: {str(e)}")
 
-    if choice == "1":
-        print("PDF Dosyalarını Oku seçildi:")
-        pdf_folder = "pdfler"
-        pdf_files = [os.path.join(pdf_folder, f) for f in os.listdir(pdf_folder) if f.endswith(".pdf")]
-        titles = []
-        for pdf_file in pdf_files:
-            titles.extend(extract_titles_from_pdf(pdf_file))
-        for title in titles:
-            print(title)
-    elif choice == "2":
-        print("PDF Dosyalarını Kaydet seçildi:")
-        pdf_folder = "pdfler"
-        pdf_files = [os.path.join(pdf_folder, f) for f in os.listdir(pdf_folder) if f.endswith(".pdf")]
-        titles = []
-        for pdf_file in pdf_files:
-            titles.extend(extract_titles_from_pdf(pdf_file))
-        save_titles_to_pdf(titles)
-        print("Başlıklar yeni PDF dosyasına kaydedildi: newfile.pdf")
-    elif choice == "3":
-        print("Çıkış Yapılıyor.")
-        break
-    else:
-        print("Geçersiz seçenek! Lütfen 1, 2 veya 3 girin.")
+
+# Function to update the Text widget with titles
+def update_text_widget():
+    global titles
+    titles = extract_titles(directory_path)
+    text_widget.delete(1.0, tk.END)  # Clear existing content
+    text_widget.insert(tk.END, "Extracted Titles:\n\n")
+    text_widget.insert(tk.END, "\n".join(title[0] for title in titles))
+
+# Function to handle button clicks
+def button_click(button):
+    global directory_path
+    if button == "extract":
+        directory_path = os.path.join(os.getcwd(), "pdfFiles")
+        print(f"Selected directory: {directory_path}")
+        update_text_widget()
+        result_label.config(text="Titles extracted successfully.")
+    elif button == "save":
+        directory_path = os.path.join(os.getcwd(), "pdfFiles")
+        print(f"Selected directory: {directory_path}")
+        save_titles(titles, "all_titles.pdf")
+        result_label.config(text="Titles saved to all_titles.pdf.")
+    elif button == "exit":
+        root.destroy()
+
+# Create the main GUI window
+root = tk.Tk()
+root.title("PDF Title Extractor")
+
+# Create and place buttons in the GUI
+extract_button = tk.Button(root, text="Extract Titles", command=lambda: button_click("extract"))
+extract_button.pack(pady=10)
+
+save_button = tk.Button(root, text="Save", command=lambda: button_click("save"))
+save_button.pack(pady=10)
+
+exit_button = tk.Button(root, text="Exit", command=lambda: button_click("exit"))
+exit_button.pack(pady=10)
+
+# Create a label to display results
+result_label = tk.Label(root, text="")
+result_label.pack(pady=10)
+
+# Create a Text widget to display extracted titles
+text_widget = tk.Text(root, height=10, width=50)
+text_widget.pack(pady=10)
+
+# Run the GUI
+root.mainloop()
